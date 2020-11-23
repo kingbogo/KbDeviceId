@@ -30,3 +30,5 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.2.0'
     implementation 'com.github.gzu-liyujiang:Android_CN_OAID:1.0.2'
 }
+
+apply from: '../bintray.gradle'
