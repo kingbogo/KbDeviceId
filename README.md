@@ -1,6 +1,6 @@
 # KbDeviceId
 
-[![Download](https://api.bintray.com/packages/kingbogo/maven/GetDeviceId/images/download.svg) ](https://bintray.com/kingbogo/maven/GetDeviceId/_latestVersion)
+![Download](https://api.bintray.com/packages/kingbogo/maven/GetDeviceId/images/download.svg)
 
 获取Android设备唯一标识码。
 
