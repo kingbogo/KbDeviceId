@@ -16,6 +16,6 @@ public final class KbConstants {
     public static final String SP_SELF_ID = "KB_ANDROID_ID-SP_SELF_ID";
 
     public static final String SELF_FILE_PATH = "/.kbadi";
-    public static final String SELF_FILE_NAME = "kb_adi_self_i.dat";
+    public static final String SELF_FILE_NAME = "kb_adi_selfic.dat";
 
 }

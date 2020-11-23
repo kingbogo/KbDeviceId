@@ -24,7 +24,10 @@ import java.util.UUID;
  */
 public final class KbAndroidUtil {
 
+    private static final String INVALID_IMEI_ID = "0000000000000";
+    private static final String INVALID_ANDROID_ID = "9774d56d682e549c";
     private static final String MARSHMALLOW_MAC_ADDRESS = "02:00:00:00:00:00";
+    private static final String INVALID_MAC_ADDRESS = "00:11:22:33:44:55";
 
     /**
      * 获取唯一码
@@ -34,8 +37,9 @@ public final class KbAndroidUtil {
         String androidId = getAndroidId(context);
         String serial = getSerial();
         String macAddress = getMacAddress(context);
+        String pesudoId = getPesudoUniqueID();
         KbLogUtil.w("_getUniqueIdCode(), imei: " + imei + ", androidId: " + androidId
-                + ", serial: " + serial + ", macAddress: " + macAddress);
+                + ", serial: " + serial + ", macAddress: " + macAddress + ", pesudoId: " + pesudoId);
 
         StringBuilder uniqueIdSb = new StringBuilder();
         // imei
@@ -54,6 +58,10 @@ public final class KbAndroidUtil {
         if (!KbCheckUtil.isEmpty(macAddress)) {
             uniqueIdSb.append(macAddress);
         }
+        // pesudoId
+        if (!KbCheckUtil.isEmpty(pesudoId)) {
+            uniqueIdSb.append(pesudoId);
+        }
 
         // 唯一标识
         String unqueId = uniqueIdSb.toString();
@@ -64,6 +72,7 @@ public final class KbAndroidUtil {
                 return md5Str;
             }
         }
+
         // 兜底逻辑
         String uuid = getUuid();
         KbLogUtil.d("_getUniqueIdCode(), 所有标识都为空，则生成UUID: " + uuid);
@@ -138,6 +147,12 @@ public final class KbAndroidUtil {
         return "";
     }
 
+    /**
+     * The IMEI: 仅仅只对Android手机有效
+     * 采用此种方法，需要在AndroidManifest.xml中加入一个许可：android.permission.READ_PHONE_STATE，并且用
+     * 户应当允许安装此应用。作为手机来讲，IMEI是唯一的，它应该类似于 359881030314356（除非你有一个没有量产的手
+     * 机（水货）它可能有无效的IMEI，如：0000000000000）。
+     */
     private static String getImei(Context context) {
         String imei = "";
         try {
@@ -151,22 +166,31 @@ public final class KbAndroidUtil {
         } catch (Exception e) {
             //ignore
         }
+        if (INVALID_IMEI_ID.equalsIgnoreCase(imei)) {
+            imei = "";
+        }
         return imei;
     }
 
     /**
      * 获得设备的AndroidId
+     * * 通常被认为不可信，因为它有时为null。开发文档中说明了：这个ID会改变如果进行了出厂设置。并且，如果某个
+     * * Andorid手机被Root过的话，这个ID也可以被任意改变。无需任何许可。
      *
      * @param context 上下文
      * @return 设备的AndroidId
      */
     private static String getAndroidId(Context context) {
+        String androidId = "";
         try {
-            return Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
+            androidId = Settings.Secure.getString(context.getContentResolver(), Settings.Secure.ANDROID_ID);
         } catch (Exception ex) {
             //ignore
         }
-        return "";
+        if (INVALID_ANDROID_ID.equalsIgnoreCase(androidId)) {
+            androidId = "";
+        }
+        return androidId;
     }
 
     /**
@@ -191,40 +215,33 @@ public final class KbAndroidUtil {
 
     /**
      * 获取手机的 Mac 地址
+     * * 是另一个唯一ID。但是你需要为你的工程加入android.permission.ACCESS_WIFI_STATE 权限，否则这个地址会为
+     * * null。Returns: 00:11:22:33:44:55 (这不是一个真实的地址。而且这个地址能轻易地被伪造。).WLan不必打开，
+     * * 就可读取些值。
      *
      * @param context Context
      * @return String 当前手机的 Mac 地址
      */
     private static String getMacAddress(Context context) {
+        String macAddress = "";
         try {
             if (!checkHasPermission(context, "android.permission.ACCESS_WIFI_STATE")) {
                 return "";
             }
             WifiManager wifiMan = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
             WifiInfo wifiInfo = wifiMan.getConnectionInfo();
-
-            if (wifiInfo != null && MARSHMALLOW_MAC_ADDRESS.equals(wifiInfo.getMacAddress())) {
-                String result = null;
-                try {
-                    wifiInfo.getBSSID();
-                    result = getMacAddressByInterface();
-                    if (result != null) {
-                        return result;
-                    }
-                } catch (Exception e) {
-                    //ignore
-                }
-            } else {
-                if (wifiInfo != null && wifiInfo.getMacAddress() != null) {
-                    return wifiInfo.getMacAddress();
-                } else {
-                    return "";
+            if (wifiInfo != null) {
+                macAddress = wifiInfo.getMacAddress();
+                if (MARSHMALLOW_MAC_ADDRESS.equalsIgnoreCase(macAddress)) {
+                    macAddress = getMacAddressByInterface();
+                } else if (INVALID_MAC_ADDRESS.equalsIgnoreCase(macAddress)) {
+                    macAddress = "";
                 }
             }
         } catch (Exception e) {
             //ignore
         }
-        return "";
+        return macAddress;
     }
 
     private static String getMacAddressByInterface() {
@@ -253,6 +270,34 @@ public final class KbAndroidUtil {
             //ignore
         }
         return null;
+    }
+
+    /**
+     * Pseudo-Unique ID, 这个在任何Android手机中都有效
+     * 有一些特殊的情况，一些如平板电脑的设置没有通话功能，或者你不愿加入READ_PHONE_STATE许可。而你仍然想获得唯
+     * 一序列号之类的东西。这时你可以通过取出ROM版本、制造商、CPU型号、以及其他硬件信息来实现这一点。这样计算出
+     * 来的ID不是唯一的（因为如果两个手机应用了同样的硬件以及Rom 镜像）。但应当明白的是，出现类似情况的可能性基
+     * 本可以忽略。大多数的Build成员都是字符串形式的，我们只取他们的长度信息。我们取到13个数字，并在前面加上“35
+     * ”。这样这个ID看起来就和15位IMEI一样了。
+     *
+     * @return PesudoUniqueID
+     */
+    private static String getPesudoUniqueID() {
+        String idShort = "35" + //we make this look like a valid IMEI
+                Build.BOARD.length() % 10 +
+                Build.BRAND.length() % 10 +
+                Build.CPU_ABI.length() % 10 +
+                Build.DEVICE.length() % 10 +
+                Build.DISPLAY.length() % 10 +
+                Build.HOST.length() % 10 +
+                Build.ID.length() % 10 +
+                Build.MANUFACTURER.length() % 10 +
+                Build.MODEL.length() % 10 +
+                Build.PRODUCT.length() % 10 +
+                Build.TAGS.length() % 10 +
+                Build.TYPE.length() % 10 +
+                Build.USER.length() % 10; //13 digits
+        return idShort;
     }
 
 }
